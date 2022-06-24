@@ -114,7 +114,7 @@ class PhiK(CycleEquation):
         else:
             return converged_cycles, None, None, n_jacobians
 
-    def generate_states(self, prime=True, sort=False ):
+    def generate_states(self, prime=True, sort=False):
         """ Produces all possible combinations of k-ary alphabet, puts them in tensor of shape (k**n, n)
 
         :return:
@@ -191,12 +191,12 @@ class PhiK(CycleEquation):
 
         """
         states = self.states
-        #initial conditions should be you entire list of possible shadow state configurations
-        #check_neg is a value that takes either 1 or 0 where if it is 1, it will check for phi to negative phi symmetry
+        # initial conditions should be you entire list of possible shadow state configurations
+        # check_neg is a value that takes either 1 or 0 where if it is 1, it will check for phi to negative phi symmetry
         if -1 in np.unique(states):
             states += 2
         # here i am just changing my shadow state values to a different symbolic alphabet that will work better
-        double_cycles = np.append(states,states,axis=1)
+        double_cycles = np.append(states, states, axis=1)
         # double_cycles is each shadow state repeated so that it is twice its length. This is used show checking for cyclic
         # permutations as every permunation exists in the orbit as if it goes through it twice. Ex: all cyclic permutation of 123
         # exist somwhere in 123123
@@ -207,7 +207,7 @@ class PhiK(CycleEquation):
             while j > i:
                 # looping rows of double_cycles, starting at the bottomw and ending before the row of the current
                 # orbit we are checking
-                if self.check_cyclic(states[i],double_cycles[j]):
+                if self.check_cyclic(states[i], double_cycles[j]):
                     # if a orbit string exists in the double_cycle of of another orbit, delete one of the orbits
                     states = np.delete(states, j, 0)
                     double_cycles = np.delete(double_cycles, j, 0)
@@ -219,12 +219,12 @@ class PhiK(CycleEquation):
             while i < np.shape(states)[0]:
                 j = np.shape(states)[0] - 1
                 while j > i:
-                    if self.check_cyclic(states[i],double_cycles[j]):
+                    if self.check_cyclic(states[i], double_cycles[j]):
                         # does the same process as before but for the comparing the negatives of the orbits
                         #  to the double cycles
                         states = np.delete(states, j, 0)
-                        double_cycles = np.delete(double_cycles, j, 0)              #
-                    j = j - 1                                                       #
+                        double_cycles = np.delete(double_cycles, j, 0)  #
+                    j = j - 1  #
                 i = i + 1
             states = -1 * (states % -4)
         if check_rev == 1:
@@ -233,7 +233,7 @@ class PhiK(CycleEquation):
             while i < np.shape(states)[0]:
                 j = np.shape(states)[0] - 1
                 while j > i:
-                    if self.check_cyclic(states[i],double_cycles[j]):
+                    if self.check_cyclic(states[i], double_cycles[j]):
                         states = np.delete(states, j, 0)
                         double_cycles = np.delete(double_cycles, j, 0)
                     j = j - 1
