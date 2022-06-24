@@ -5,6 +5,7 @@ from ..core import CycleEquation
 
 __all__ = ['PhiK']
 
+
 class PhiK(CycleEquation):
 
     def __init__(self, n, k, musqr, states=None, basis='symbolic'):
@@ -59,15 +60,16 @@ class PhiK(CycleEquation):
                 -3 * (s - 2) * states ** 2 + s) * Ftensor
         return JTF.ravel()
 
-    def jac_tensor(self):
+    def jac_tensor(self, states=None):
         """ Calculate all Jacobians for cuurent state
 
         """
         n, k = self.n, self.k
-        all_n_cycle = self.states
+        if states is None:
+            states = self.states
         J = np.zeros([3 ** n, n, n])
-        upper_rows, upper_cols = _kth_diag_indices(J[0], -1)
-        lower_rows, lower_cols = _kth_diag_indices(J[0], 1)
+        upper_rows, upper_cols = self._kth_diag_indices(J[0], -1)
+        lower_rows, lower_cols = self._kth_diag_indices(J[0], 1)
         zeroth = np.repeat(np.arange(3 ** n), len(upper_rows))
         upper_rows = np.tile(upper_rows, 3 ** n)
         upper_cols = np.tile(upper_cols, 3 ** n)
@@ -78,7 +80,7 @@ class PhiK(CycleEquation):
         J[zeroth, lower_rows, lower_cols] = -1
         J[:, 0, -1] = -1
         J[:, -1, 0] = -1
-        tensor_diagonal = (-3 * (s - 2) * all_n_cycles ** 2 + s).ravel()
+        tensor_diagonal = (-3 * (self.s - 2) * states ** 2 + self.s).ravel()
 
         rows, cols = np.diag_indices(n)
         zeroth = np.repeat(np.arange(3 ** n), len(rows))
@@ -95,31 +97,34 @@ class PhiK(CycleEquation):
         else:
             return rows, cols
 
-    def n_cycle_everything(self):
-        n = self.n
-        all_n_cycles = find_cycle_tensor(n)
+    def n_cycle_everything(self, compute_eig=False):
+        converged_cycles = self.hunt()
+        n_jacobians = self.jac_tensor(converged_cycles)
 
-        n_jacobians = all_n_cycle_jacobians(all_n_cycles, n)
+        if compute_eig:
+            all_eig_val = []
+            all_eig_vec = []
+            for each_jac in n_jacobians:
+                val, vec = eig(each_jac)
+                all_eig_val.append(val)
+                all_eig_vec.append(vec[np.newaxis])
+            all_eig_val = np.concatenate(all_eig_val)
+            all_eig_vec = np.concatenate(all_eig_vec)
+            return converged_cycles, all_eig_val, all_eig_vec, n_jacobians
+        else:
+            return converged_cycles, None, None, n_jacobians
 
-        all_eig_val = []
-        all_eig_vec = []
-        for each_jac in n_jacobians:
-            val, vec = eig(each_jac)
-            all_eig_val.append(val)
-            all_eig_vec.append(vec[np.newaxis])
-        all_eig_val = np.concatenate(all_eig_val)
-        all_eig_vec = np.concatenate(all_eig_vec)
-        return all_n_cycles, all_eig_val, all_eig_vec, n_jacobians
-
-    def generate_states(self, prime=True):
+    def generate_states(self, prime=True, sort=False ):
         """ Produces all possible combinations of k-ary alphabet, puts them in tensor of shape (k**n, n)
 
         :return:
         """
-        n, k = self.n, self.k
+
         self.states = np.concatenate([coord.ravel().reshape(-1, 1) for coord in np.meshgrid(*(self.symbols for i in
-                                                                                              range(n)))],
+                                                                                              range(self.n)))],
                                      axis=1)
+        if sort:
+            self.states = np.sort(self.states, axis=0)
         if prime:
             self.states = self.prime_orbits()
 
@@ -164,20 +169,8 @@ class PhiK(CycleEquation):
         elif to == 'proxy':
             return self.states + 2
 
-    def vectorized_comparison(self, symbols, symbols_to_compare_against, offdiag=0):
-        counts = np.char.count(symbols_to_compare_against.astype(str).reshape(-1, 1),
-                               symbols.astype(str).reshape(1, -1))
-        lower_idx = np.tril_indices(len(counts), offdiag)
-        mask = np.zeros_like(counts)
-        mask[lower_idx] = 1
-        masked_counts = np.ma.masked_array(counts, mask=mask)
-        return masked_counts
-
-    def prime_orbits(self, check_neg=True, check_rev=True):
+    def prime_orbits(self, check_neg=False, check_rev=False):
         """ Maps a set of initial conditions for phi-k equations into a set of prime representatives
-
-        states: np.ndarray
-            An M x N shaped array where N is the cycle length and M is however many states are being mapped.
 
         check_neg : bool
             If true, quotients -1 -> 1 symmetry
@@ -188,61 +181,83 @@ class PhiK(CycleEquation):
         Notes
         -----
 
-        The different flags are essentially equivalent to calling the same function just on modified inputs. 
+        The different flags are essentially equivalent to calling the same function just on modified inputs.
         What the code does is a vectorized comparison using numpy broadcasting. That is, given two vectors v1, v2 of length M,
-        all possible pairs are compared, to see if v1 occurs as a substring in v2. This pairwise comparison results in a matrix; 
-        the ij-th element of the matrix, M_ij, counts the number of occurrences of v1_i in v2_j. 
+        all possible pairs are compared, to see if v1 occurs as a substring in v2. This pairwise comparison results in a matrix;
+        the ij-th element of the matrix, M_ij, counts the number of occurrences of v1_i in v2_j.
 
         This can be used along with boolean logic and summation to see if any off-diagonal elements are non-zero; a prime
         set would result in a diagonal matrix under this comparison.
 
         """
         states = self.states
-        if -1 in states:
-            states = states + 2
-
-        # symbol representation
-        symbols = np.sort(np.array(states.astype(str), dtype=object).sum(axis=1))
-        # double repeats
-        doubles = symbols + symbols
-
-        # the function which does the vectorized comparison
-        masked_counts = self.vectorized_comparison(symbols, doubles, offdiag=-1)
-
-        # The index positions of cycles which are prime (so far)
-        admissible_index = list(np.where(((masked_counts == 1).sum(axis=0) == 0))[0]) + [0]
-        # The comparison fails to capture cycles like '111', handle them explicitly
-        not_pure_cyclic = np.where(masked_counts.sum(axis=1) != 2)[0]
-        admissible_index = list(set(admissible_index).intersection(set(not_pure_cyclic)))
-        # keep only the admissible states
-        states = states[admissible_index]
-        doubles = doubles[admissible_index]
-        if check_neg:
-            # just doing the same as above, but for negative states
-            # Just want a fast way of mapping 1,2,3 -> 3,2,1; doesn't matter how, this does that. 
+        #initial conditions should be you entire list of possible shadow state configurations
+        #check_neg is a value that takes either 1 or 0 where if it is 1, it will check for phi to negative phi symmetry
+        if -1 in np.unique(states):
+            states += 2
+        # here i am just changing my shadow state values to a different symbolic alphabet that will work better
+        double_cycles = np.append(states,states,axis=1)
+        # double_cycles is each shadow state repeated so that it is twice its length. This is used show checking for cyclic
+        # permutations as every permunation exists in the orbit as if it goes through it twice. Ex: all cyclic permutation of 123
+        # exist somwhere in 123123
+        i = 0
+        while i < np.shape(states)[0]:
+            # looping through each row of the initial conditions
+            j = np.shape(states)[0] - 1
+            while j > i:
+                # looping rows of double_cycles, starting at the bottomw and ending before the row of the current
+                # orbit we are checking
+                if self.check_cyclic(states[i],double_cycles[j]):
+                    # if a orbit string exists in the double_cycle of of another orbit, delete one of the orbits
+                    states = np.delete(states, j, 0)
+                    double_cycles = np.delete(double_cycles, j, 0)
+                j = j - 1
+            i = i + 1
+        if check_neg == 1:
             states = -1 * (states % -4)
-            symbols = np.array(states.astype(str), dtype=object).sum(axis=1)
-            masked_counts = self.vectorized_comparison(symbols, doubles)
-            admissible_index = list(np.where(masked_counts.sum(axis=0) != 1)[0])
-            states = states[admissible_index]
-            doubles = doubles[admissible_index]
-            # mapping is its own inverse
+            i = 0
+            while i < np.shape(states)[0]:
+                j = np.shape(states)[0] - 1
+                while j > i:
+                    if self.check_cyclic(states[i],double_cycles[j]):
+                        # does the same process as before but for the comparing the negatives of the orbits
+                        #  to the double cycles
+                        states = np.delete(states, j, 0)
+                        double_cycles = np.delete(double_cycles, j, 0)              #
+                    j = j - 1                                                       #
+                i = i + 1
             states = -1 * (states % -4)
-        if check_rev:
-            # just doing same as above except for reversed states, re-using variable name for convenience.
+        if check_rev == 1:
             states = states[..., ::-1]
-            symbols = np.array(states.astype(str), dtype=object).sum(axis=1)
-            masked_counts = self.vectorized_comparison(symbols, doubles)
+            i = 0
+            while i < np.shape(states)[0]:
+                j = np.shape(states)[0] - 1
+                while j > i:
+                    if self.check_cyclic(states[i],double_cycles[j]):
+                        states = np.delete(states, j, 0)
+                        double_cycles = np.delete(double_cycles, j, 0)
+                    j = j - 1
+                i = i + 1
+        copy_of_reversed_initial = states.copy()
+        i = 0
+        del_array = np.zeros(np.shape(states)[0])
+        while i < np.shape(states)[0]:
+            j = 1
+            while j <= np.shape(states)[1] - 1:
+                copy_of_reversed_initial[i] = np.roll(copy_of_reversed_initial[i], 1)
+                if self.check_cyclic(copy_of_reversed_initial[i], states[i]):
+                    del_array[i] = 1
+                j = j + 1
+            i = i + 1
 
-            admissible_index = list(np.where(masked_counts.sum(axis=0) != 1)[0])
-            states = states[admissible_index]
-            reversed_states = states.copy()
-            states = states[..., ::-1]
+        states = np.delete(states, np.where(del_array == 1), 0)
+        states -= 2
+        return states
 
-            # to capture all reversed states properly, need to do comparison against non-doubled as well.
-            symbols = np.array(states.astype(str), dtype=object).sum(axis=1)
-            reversed_symbols = np.array(reversed_states.astype(str), dtype=object).sum(axis=1)
-            masked_counts = self.vectorized_comparison(symbols, reversed_symbols)
-            admissible_index = list(np.where(masked_counts.sum(axis=0) != 1)[0])
-            states = states[admissible_index]
-        return states - 2
+    def check_cyclic(self, orbit_1, orbit_2):
+        """ Checks if two orbits are members of the same group orbit
+    
+        A: 
+    
+        """
+        return ', '.join(map(str, orbit_1)) in ', '.join(map(str, orbit_2))
