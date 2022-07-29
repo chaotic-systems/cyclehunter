@@ -164,95 +164,94 @@ class PhiK(CycleEquation):
     def change_basis(self, to=None):
         if to is None or self.basis == to:
             return self.states
+        elif to == 'string':
+            # cast as strings of length 2 because of negative sign
+            return self.states.astype('|S2')
         elif to == 'symbolic':
             return self.states - 2
         elif to == 'proxy':
             return self.states + 2
 
     def prime_orbits(self, check_neg=False, check_rev=False):
-        """ Maps a set of initial conditions for phi-k equations into a set of prime representatives
-
-        check_neg : bool
-            If true, quotients -1 -> 1 symmetry
-
-        check_rev : bool
-            If true, quotients reversal symmetry, i.e equivariance w.r.t. array[::-1]
-
-        Notes
-        -----
-
-        The different flags are essentially equivalent to calling the same function just on modified inputs.
-        What the code does is a vectorized comparison using numpy broadcasting. That is, given two vectors v1, v2 of length M,
-        all possible pairs are compared, to see if v1 occurs as a substring in v2. This pairwise comparison results in a matrix;
-        the ij-th element of the matrix, M_ij, counts the number of occurrences of v1_i in v2_j.
-
-        This can be used along with boolean logic and summation to see if any off-diagonal elements are non-zero; a prime
-        set would result in a diagonal matrix under this comparison.
-
-        """
-        states = self.states
+        initial_conditions = self.states
         # initial conditions should be you entire list of possible shadow state configurations
         # check_neg is a value that takes either 1 or 0 where if it is 1, it will check for phi to negative phi symmetry
-        if -1 in np.unique(states):
-            states += 2
+        initial_conditions[initial_conditions == 1] = 3
+        initial_conditions[initial_conditions == 0] = 2
+        initial_conditions[initial_conditions == -1] = 1
         # here i am just changing my shadow state values to a different symbolic alphabet that will work better
-        double_cycles = np.append(states, states, axis=1)
+        double_cycles = np.append(initial_conditions, initial_conditions, axis=1)
         # double_cycles is each shadow state repeated so that it is twice its length. This is used show checking for cyclic
         # permutations as every permunation exists in the orbit as if it goes through it twice. Ex: all cyclic permutation of 123
         # exist somwhere in 123123
         i = 0
-        while i < np.shape(states)[0]:
-            # looping through each row of the initial conditions
-            j = np.shape(states)[0] - 1
-            while j > i:
-                # looping rows of double_cycles, starting at the bottomw and ending before the row of the current
+        while i < np.shape(initial_conditions)[0]:  # looping through each row of the initial conditions
+            j = np.shape(initial_conditions)[0] - 1
+            while j > i:  # looping rows of double_cycles, starting at the bottomw and ending before the row of the current
                 # orbit we are checking
-                if self.check_cyclic(states[i], double_cycles[j]):
-                    # if a orbit string exists in the double_cycle of of another orbit, delete one of the orbits
-                    states = np.delete(states, j, 0)
-                    double_cycles = np.delete(double_cycles, j, 0)
-                j = j - 1
+                if self.check_cyclic(initial_conditions[i], double_cycles[j]) == True:
+                    initial_conditions = np.delete(initial_conditions, j, 0)
+                    double_cycles = np.delete(double_cycles, j,
+                                              0)  # if a orbit string exists in the double_cycle of of another
+                j = j - 1  # orbit, delete one of the orbits
             i = i + 1
         if check_neg == 1:
-            states = -1 * (states % -4)
+            initial_conditions[
+                initial_conditions == 1] = -1  # if we want to check if cycles are just negatives of another cycle
+            initial_conditions[initial_conditions == 2] = 0
+            initial_conditions[initial_conditions == 3] = 1
+            initial_conditions = initial_conditions * (
+                -1)  # have to first convert to shadow states in order to apply negative
+            initial_conditions[initial_conditions == 1] = 3  # sign to states, then convert back the the 1 2 3 alphabet
+            initial_conditions[initial_conditions == 0] = 2
+            initial_conditions[initial_conditions == -1] = 1
             i = 0
-            while i < np.shape(states)[0]:
-                j = np.shape(states)[0] - 1
+            while i < np.shape(initial_conditions)[0]:
+                j = np.shape(initial_conditions)[0] - 1
                 while j > i:
-                    if self.check_cyclic(states[i], double_cycles[j]):
-                        # does the same process as before but for the comparing the negatives of the orbits
-                        #  to the double cycles
-                        states = np.delete(states, j, 0)
-                        double_cycles = np.delete(double_cycles, j, 0)  #
-                    j = j - 1  #
+                    if self.check_cyclic(initial_conditions[i], double_cycles[j]) == True:
+                        initial_conditions = np.delete(initial_conditions, j,
+                                                       0)  # does the same process as before but for
+                        double_cycles = np.delete(double_cycles, j, 0)  # the comparing the negatives of the orbits
+                    j = j - 1  # to the double cycles
                 i = i + 1
-            states = -1 * (states % -4)
+            initial_conditions[initial_conditions == 1] = -1
+            initial_conditions[initial_conditions == 2] = 0
+            initial_conditions[initial_conditions == 3] = 1
+            initial_conditions = initial_conditions * (-1)
+            initial_conditions[initial_conditions == 1] = 3
+            initial_conditions[initial_conditions == 0] = 2
+            initial_conditions[initial_conditions == -1] = 1
         if check_rev == 1:
-            states = states[..., ::-1]
+            initial_conditions = initial_conditions[..., ::-1]
             i = 0
-            while i < np.shape(states)[0]:
-                j = np.shape(states)[0] - 1
+            while i < np.shape(initial_conditions)[0]:
+                j = np.shape(initial_conditions)[0] - 1
                 while j > i:
-                    if self.check_cyclic(states[i], double_cycles[j]):
-                        states = np.delete(states, j, 0)
+                    if self.check_cyclic(initial_conditions[i], double_cycles[j]) == True:
+                        initial_conditions = np.delete(initial_conditions, j, 0)
                         double_cycles = np.delete(double_cycles, j, 0)
                     j = j - 1
                 i = i + 1
-        copy_of_reversed_initial = states.copy()
+        copy_of_reversed_initial = initial_conditions.copy()
         i = 0
-        del_array = np.zeros(np.shape(states)[0])
-        while i < np.shape(states)[0]:
+        del_array = np.zeros(np.shape(initial_conditions)[0])
+        while i < np.shape(initial_conditions)[0]:
             j = 1
-            while j <= np.shape(states)[1] - 1:
-                copy_of_reversed_initial[i] = np.roll(copy_of_reversed_initial[i], 1)
-                if self.check_cyclic(copy_of_reversed_initial[i], states[i]):
+            while j <= np.shape(initial_conditions)[1] - 1:
+                self.rotate(copy_of_reversed_initial[i])
+                if self.check_cyclic(copy_of_reversed_initial[i], initial_conditions[i]) == True:
                     del_array[i] = 1
                 j = j + 1
             i = i + 1
 
-        states = np.delete(states, np.where(del_array == 1), 0)
-        states -= 2
-        return states
+        initial_conditions = np.delete(initial_conditions, np.where(del_array == 1), 0)
+
+        initial_conditions[initial_conditions == 1] = -1
+        initial_conditions[initial_conditions == 2] = 0
+        initial_conditions[initial_conditions == 3] = 1
+
+        return initial_conditions
 
     def check_cyclic(self, orbit_1, orbit_2):
         """ Checks if two orbits are members of the same group orbit
@@ -261,3 +260,10 @@ class PhiK(CycleEquation):
     
         """
         return ', '.join(map(str, orbit_1)) in ', '.join(map(str, orbit_2))
+
+    def rotate(self, A):
+        x = A[len(A) - 1]
+        for i in range(len(A) - 1, 0, -1):
+            A[i] = A[i - 1]
+        A[0] = x
+        return A
