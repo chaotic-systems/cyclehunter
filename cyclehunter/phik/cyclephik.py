@@ -126,7 +126,7 @@ class PhiK(CycleEquation):
         if sort:
             self.states = np.sort(self.states, axis=0)
         if prime:
-            self.states = self.prime_orbits()
+            self.states = self.prime_cycles()
 
         return self
 
@@ -172,7 +172,7 @@ class PhiK(CycleEquation):
         elif to == 'proxy':
             return self.states + 2
 
-    def prime_orbits(self, check_neg=False, check_rev=False):
+    def prime_cycles(self, check_neg=False, check_rev=False):
         initial_conditions = self.states
         # initial conditions should be you entire list of possible shadow state configurations
         # check_neg is a value that takes either 1 or 0 where if it is 1, it will check for phi to negative phi symmetry
@@ -193,7 +193,7 @@ class PhiK(CycleEquation):
                     initial_conditions = np.delete(initial_conditions, j, 0)
                     double_cycles = np.delete(double_cycles, j,
                                               0)  # if a orbit string exists in the double_cycle of of another
-                j = j - 1  # orbit, delete one of the orbits
+                j = j - 1  # orbit, delete one of the cycles
             i = i + 1
         if check_neg == 1:
             initial_conditions[
@@ -212,7 +212,7 @@ class PhiK(CycleEquation):
                     if self.check_cyclic(initial_conditions[i], double_cycles[j]) == True:
                         initial_conditions = np.delete(initial_conditions, j,
                                                        0)  # does the same process as before but for
-                        double_cycles = np.delete(double_cycles, j, 0)  # the comparing the negatives of the orbits
+                        double_cycles = np.delete(double_cycles, j, 0)  # the comparing the negatives of the cycles
                     j = j - 1  # to the double cycles
                 i = i + 1
             initial_conditions[initial_conditions == 1] = -1
@@ -246,7 +246,6 @@ class PhiK(CycleEquation):
             i = i + 1
 
         initial_conditions = np.delete(initial_conditions, np.where(del_array == 1), 0)
-
         initial_conditions[initial_conditions == 1] = -1
         initial_conditions[initial_conditions == 2] = 0
         initial_conditions[initial_conditions == 3] = 1
@@ -254,7 +253,7 @@ class PhiK(CycleEquation):
         return initial_conditions
 
     def check_cyclic(self, orbit_1, orbit_2):
-        """ Checks if two orbits are members of the same group orbit
+        """ Checks if two cycles are members of the same group orbit
     
         A: 
     
