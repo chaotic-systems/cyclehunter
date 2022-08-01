@@ -1,23 +1,15 @@
-import numpy as np
-from scipy.optimize import minimize
-
 __all__ = ['CycleEquation']
 
 class CycleEquation:
 
-    def __init__(self, n, k, musqr, states=None, basis='symbolic'):
+    def __init__(self, *parameters, states=None, basis='symbolic', **kwargs):
         """
         :param n: int
             Cycle length
         :param k: int
             potential exponent
-        :param constants: int
-            In this implementation of PhiK, this is mu squared. Naming is simply a convention
         """
-        self.n = n
-        self.k = k
-        self.musqr = musqr
-        self.s = musqr + 2
+        self.parameters = parameters
         self.states = states
         self.basis = basis
 
