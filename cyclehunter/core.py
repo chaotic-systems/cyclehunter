@@ -38,36 +38,12 @@ class CycleEquation:
         ...
 
 
-    def generate_states(self, prime=True):
+    def generate_states(self, prime=False):
         """ Produces all possible combinations of k-ary alphabet, puts them in tensor of shape (k**n, n)
 
         :return:
         """
         ...
 
-    def hunt(self, method='l-bfgs-b', **kwargs):
+    def hunt(self, method=None, **kwargs):
         ...
-
-    def costwrapper(self):
-        """ Functions for scipy routines must take vectors of state variables, not class objects. 
-
-
-        :return: 
-        """
-
-        def minfunc_(x):
-            return self.__class__(self.n, self.k, self.musqr, states=x.reshape(-1, self.n)).cost()
-
-        return minfunc_
-
-    def costgradwrapper(self):
-        """ Functions for scipy routines must take vectors of state variables, not class objects. 
-
-
-        :return: 
-        """
-
-        def _minjac(x):
-            return self.__class__(self.n, self.k, self.musqr, states=x.reshape(-1, self.n)).costgrad()
-
-        return _minjac
